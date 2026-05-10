@@ -347,9 +347,11 @@
         const GRID_SIZE = 20;
         const CELL_SIZE = canvas.width / GRID_SIZE;
 
+        const FOOD_COUNT = 3; // 同时存在的食物数量
+
         // Game state
         let snake = [];
-        let food = {};
+        let foods = [];
         let direction = { x: 1, y: 0 };
         let nextDirection = { x: 1, y: 0 };
         let score = 0;
@@ -359,6 +361,7 @@
         let gameLoop = null;
         let gameSpeed = 100;
         let wallWrapMode = false;
+
 
 
         // 初始化最佳分数显示
@@ -373,34 +376,48 @@
             ];
         }
 
-        // 生成食物（确保不在蛇身上）
-        function generateFood() {
+        // 检查某个位置是否被蛇或已有食物占据
+        function isOccupied(x, y) {
+            if (snake.some(segment => segment.x === x && segment.y === y)) return true;
+            if (foods.some(f => f.x === x && f.y === y)) return true;
+            return false;
+        }
+
+        // 生成一个食物（确保不在蛇身和其他食物上）
+        function generateOneFood() {
             const maxAttempts = 1000;
             for (let i = 0; i < maxAttempts; i++) {
                 const x = Math.floor(Math.random() * GRID_SIZE);
                 const y = Math.floor(Math.random() * GRID_SIZE);
-                if (!snake.some(segment => segment.x === x && segment.y === y)) {
-                    food = { x, y };
-                    return;
+                if (!isOccupied(x, y)) {
+                    foods.push({ x, y });
+                    return true;
                 }
-            }
-            // 如果找不到位置（几乎不可能），检查是否真的满了
-            if (snake.length >= GRID_SIZE * GRID_SIZE) {
-                // 胜利！蛇填满了整个网格
-                gameWin();
-                return;
             }
             // 兜底：遍历所有格子
             for (let y = 0; y < GRID_SIZE; y++) {
                 for (let x = 0; x < GRID_SIZE; x++) {
-                    if (!snake.some(segment => segment.x === x && segment.y === y)) {
-                        food = { x, y };
-                        return;
+                    if (!isOccupied(x, y)) {
+                        foods.push({ x, y });
+                        return true;
                     }
                 }
             }
-            gameWin();
+            // 没有空位了，检查是否胜利
+            if (snake.length >= GRID_SIZE * GRID_SIZE) {
+                gameWin();
+            }
+            return false;
         }
+
+        // 初始化所有食物
+        function initFoods() {
+            foods = [];
+            for (let i = 0; i < FOOD_COUNT; i++) {
+                if (!generateOneFood()) break;
+            }
+        }
+
 
         // 绘制游戏
         function draw() {
@@ -487,39 +504,42 @@
                 }
             });
 
-            // 绘制食物
-            const fx = food.x * CELL_SIZE;
-            const fy = food.y * CELL_SIZE;
+            // 绘制所有食物
             const pulse = Math.sin(Date.now() / 200) * 0.1 + 0.9;
+            foods.forEach((food) => {
+                const fx = food.x * CELL_SIZE;
+                const fy = food.y * CELL_SIZE;
 
-            // 发光效果
-            const glow = ctx.createRadialGradient(
-                fx + CELL_SIZE / 2, fy + CELL_SIZE / 2, 0,
-                fx + CELL_SIZE / 2, fy + CELL_SIZE / 2, CELL_SIZE
-            );
-            glow.addColorStop(0, 'rgba(255, 214, 10, 0.4)');
-            glow.addColorStop(1, 'rgba(255, 214, 10, 0)');
-            ctx.fillStyle = glow;
-            ctx.fillRect(fx - CELL_SIZE / 2, fy - CELL_SIZE / 2, CELL_SIZE * 2, CELL_SIZE * 2);
+                // 发光效果
+                const glow = ctx.createRadialGradient(
+                    fx + CELL_SIZE / 2, fy + CELL_SIZE / 2, 0,
+                    fx + CELL_SIZE / 2, fy + CELL_SIZE / 2, CELL_SIZE
+                );
+                glow.addColorStop(0, 'rgba(255, 214, 10, 0.4)');
+                glow.addColorStop(1, 'rgba(255, 214, 10, 0)');
+                ctx.fillStyle = glow;
+                ctx.fillRect(fx - CELL_SIZE / 2, fy - CELL_SIZE / 2, CELL_SIZE * 2, CELL_SIZE * 2);
 
-            // 食物本体
-            const foodPadding = (CELL_SIZE - CELL_SIZE * 0.7 * pulse) / 2;
-            ctx.beginPath();
-            ctx.roundRect(fx + foodPadding, fy + foodPadding, CELL_SIZE * 0.7 * pulse, CELL_SIZE * 0.7 * pulse, 6);
-            const foodGradient = ctx.createRadialGradient(
-                fx + CELL_SIZE / 2, fy + CELL_SIZE / 2, 0,
-                fx + CELL_SIZE / 2, fy + CELL_SIZE / 2, CELL_SIZE / 2
-            );
-            foodGradient.addColorStop(0, '#ffd60a');
-            foodGradient.addColorStop(1, '#ff9e00');
-            ctx.fillStyle = foodGradient;
-            ctx.fill();
+                // 食物本体
+                const foodPadding = (CELL_SIZE - CELL_SIZE * 0.7 * pulse) / 2;
+                ctx.beginPath();
+                ctx.roundRect(fx + foodPadding, fy + foodPadding, CELL_SIZE * 0.7 * pulse, CELL_SIZE * 0.7 * pulse, 6);
+                const foodGradient = ctx.createRadialGradient(
+                    fx + CELL_SIZE / 2, fy + CELL_SIZE / 2, 0,
+                    fx + CELL_SIZE / 2, fy + CELL_SIZE / 2, CELL_SIZE / 2
+                );
+                foodGradient.addColorStop(0, '#ffd60a');
+                foodGradient.addColorStop(1, '#ff9e00');
+                ctx.fillStyle = foodGradient;
+                ctx.fill();
 
-            // 食物高光
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
-            ctx.beginPath();
-            ctx.arc(fx + CELL_SIZE * 0.35, fy + CELL_SIZE * 0.35, 3, 0, Math.PI * 2);
-            ctx.fill();
+                // 食物高光
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                ctx.beginPath();
+                ctx.arc(fx + CELL_SIZE * 0.35, fy + CELL_SIZE * 0.35, 3, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
         }
 
         // roundRect polyfill for canvas
@@ -568,14 +588,24 @@
 
             snake.unshift(head);
 
-            // 检查是否吃到食物
-            if (head.x === food.x && head.y === food.y) {
-                score += 10;
-                scoreElement.textContent = score;
-                generateFood();
-            } else {
+            // 检查是否吃到食物（遍历所有食物）
+            let ateFood = false;
+            for (let i = foods.length - 1; i >= 0; i--) {
+                if (head.x === foods[i].x && head.y === foods[i].y) {
+                    foods.splice(i, 1);
+                    ateFood = true;
+                    score += 10;
+                    scoreElement.textContent = score;
+                    // 立即补充一个食物
+                    generateOneFood();
+                    break;
+                }
+            }
+
+            if (!ateFood) {
                 snake.pop();
             }
+
         }
 
 
@@ -621,8 +651,9 @@
             startOverlay.classList.add('hidden');
             gameOverOverlay.classList.add('hidden');
 
-            generateFood();
+            initFoods();
             draw();
+
 
             if (gameLoop) clearInterval(gameLoop);
             gameRunning = true;
@@ -719,8 +750,9 @@
 
         // 初始绘制
         initSnake();
-        generateFood();
+        initFoods();
         draw();
+
 
     </script>
 </body>
